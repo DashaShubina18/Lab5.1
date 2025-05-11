@@ -9,6 +9,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Xml.Linq;
+using static System.Net.WebRequestMethods;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement;
 
 namespace Lab5._1
 {
@@ -74,8 +77,6 @@ namespace Lab5._1
             column.Width = 60;
             gvBicycles.Columns.Add(column);
 
-            bindSrcBicycles.Add(new Bicycle("Trek FX 3", 2022, "Black", 850, 120, 12, false, false));
-            EventArgs args = new EventArgs(); OnResize(args);
         }
 
         private void btnAdd_Click(object sender, EventArgs e)
@@ -85,7 +86,7 @@ namespace Lab5._1
             if (fb.ShowDialog() == DialogResult.OK)
             {
                 bindSrcBicycles.Add(bicycle);
-                bindSrcBicycles.ResetBindings(false);
+
             }
         }
 
@@ -129,7 +130,7 @@ namespace Lab5._1
 
         private void btnSaveAsText_Click(object sender, EventArgs e)
         {
-            saveFileDialog.Filter = "Текстові файли (* .txt)|*. txt|All files (*.*)|*.*";
+            saveFileDialog.Filter = "Текстові файли (*.txt)|*.txt|All files (*.*)|*.*";
             saveFileDialog.Title = "Зберегти дані у текстовому форматі";
             saveFileDialog.InitialDirectory = Application.StartupPath;
             if (saveFileDialog.ShowDialog() == DialogResult.OK)
@@ -140,7 +141,8 @@ namespace Lab5._1
                     {
                         foreach (Bicycle bicycle in bindSrcBicycles.List)
                         {
-                            sw.Write(bicycle.Model + "\t" + bicycle.Year + "\t" + bicycle.Colour + " \t" + bicycle.Price + " \t" + bicycle.FrameLoadCapacity + "\t" + bicycle.Weight + " \t" + bicycle.WasUsed +
+                            sw.Write(bicycle.Model + "\t" + bicycle.Year + "\t" + bicycle.Colour + " \t" + bicycle.Price +
+                                " \t" + bicycle.FrameLoadCapacity + "\t" + bicycle.Weight + " \t" + bicycle.WasUsed +
                             "\t " + bicycle.WasDamaged + "\t\n");
                         }
                     }
@@ -149,13 +151,139 @@ namespace Lab5._1
 
                 catch (Exception ex)
                 {
-                    MessageBox.Show("Сталась помилка: \n{e]", ex.Message,
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show("Сталась помилка: \n" + ex.Message,
+                    "Помилка", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
             }
-            
+
+        }
+
+        private void btnSaveAsBinary_Click(object sender, EventArgs e)
+        {
+            saveFileDialog.Filter = "Файли даних (*.bicycles)|*.bicycles|All files (*.*)|*.*";
+            saveFileDialog.Title = "Зберегти дані у бінарному форматі";
+            saveFileDialog.InitialDirectory = Application.StartupPath;
+            BinaryWriter bw;
+            if (saveFileDialog.ShowDialog() == DialogResult.OK)
+            {
+                bw = new BinaryWriter(saveFileDialog.OpenFile());
+                try
+                {
+                    foreach (Bicycle bicycle in bindSrcBicycles.List)
+                    {
+                        bw.Write(bicycle.Model);
+                        bw.Write(bicycle.Year); bw.Write(bicycle.Colour);
+                        bw.Write(bicycle.Price); bw.Write(bicycle.FrameLoadCapacity);
+                        bw.Write(bicycle.Weight);
+                        bw.Write(bicycle.WasUsed);
+                        bw.Write(bicycle.WasDamaged);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Сталась помилка: \n{0}", ex.Message, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                finally
+                {
+                    bw.Close();
+                }
+            }
+        }
+
+        private void btnOpenFromText_Click(object sender, EventArgs e)
+        {
+            OpenFileDialog openFileDialog = new OpenFileDialog();
+            openFileDialog.Filter = "Текстові файли (*.txt)|*.txt|All files (*.*)|*.*";
+            openFileDialog.Title = "Прочитати дані у текстовому форматі";
+            openFileDialog.InitialDirectory = Application.StartupPath;
+            StreamReader sr;
+            if (openFileDialog.ShowDialog() == DialogResult.OK)
+            {
+                sr = new StreamReader(openFileDialog.FileName, Encoding.UTF8);
+                string s;
+                try
+                {
+                    while ((s = sr.ReadLine()) != null)
+                    {
+                        string[] split = s.Split('\t');
+                        Bicycle bicycle = new Bicycle(split[0], int.Parse(split[1]), split[2],
+                        int.Parse(split[3]), int.Parse(split[4]), double.Parse(split[5]), bool.Parse(split[6]), bool.Parse(split[7]));
+                        bindSrcBicycles.Add(bicycle);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Сталась помилка: \n {ex.Message}",
+                        "Помилка", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                finally
+                {
+                    sr.Close();
+                }
+            }
+        }
+
+        private void btnOpenFromBinary_Click(object sender, EventArgs e)
+        {
+            OpenFileDialog openFileDialog = new OpenFileDialog();
+            openFileDialog.Filter = "Файли даних (*.bicycles)|*.bicycles|All files (*.*)|*.* ";
+            openFileDialog.Title = "Прочитати дані у бінарному форматі";
+            openFileDialog.InitialDirectory = Application.StartupPath;
+            BinaryReader br;
+            if (openFileDialog.ShowDialog() == DialogResult.OK)
+            {
+                bindSrcBicycles.Clear();
+                br = new BinaryReader(openFileDialog.OpenFile());
+                try
+                {
+                    Bicycle bicycle; while (br.BaseStream.Position < br.BaseStream.Length)
+                    {
+                        bicycle = new Bicycle();
+                        for (int i = 1; i <= 8; i++)
+                        {
+                            switch (i)
+                            {
+                                case 1:
+                                    bicycle.Model = br.ReadString();
+                                    break;
+                                case 2:
+                                    bicycle.Year = br.ReadInt32(); break;
+                                case 3:
+                                    bicycle.Colour = br.ReadString(); break;
+                                case 4:
+                                    bicycle.Price = br.ReadInt32();
+                                    break;
+                                case 5:
+                                    bicycle.FrameLoadCapacity = br.ReadInt32();
+                                    break;
+                                case 6:
+                                    bicycle.Weight = br.ReadDouble();
+                                    break;
+                                case 7:
+                                    bicycle.WasUsed = br.ReadBoolean();
+                                    break;
+                                case 8:
+                                    bicycle.WasDamaged = br.ReadBoolean();
+                                    break;
+                            }
+                        }
+                        bindSrcBicycles.Add(bicycle);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("Сталась помилка: {0}", ex.Message,
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+                finally
+                {
+                    br.Close();
+                }
+            }
         }
     }
 }
+
+
 
 
